@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>스마트 대학 학점 계산기 & 성적 관리 시스템 (Pro)</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Edit Subject Modal -->
+  <div id="editModal" class="modal-backdrop hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>✏️ 과목 정보 수정</h3>
+        <button type="button" id="btnModalClose" class="modal-close-btn">&times;</button>
+      </div>
+      <form id="editForm" class="modal-body">
+        <input type="hidden" id="editIndex">
+        <div class="form-group">
+          <label for="editName">과목명</label>
+          <input type="text" id="editName" class="custom-input" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group col-half">
+            <label for="editSemester">이수 학기</label>
+            <select id="editSemester" class="custom-select">
+              <option value="1-1">1학년 1학기</option>
+              <option value="1-2">1학년 2학기</option>
+              <option value="2-1">2학년 1학기</option>
+              <option value="2-2">2학년 2학기</option>
+              <option value="3-1">3학년 1학기</option>
+              <option value="3-2">3학년 2학기</option>
+              <option value="4-1">4학년 1학기</option>
+              <option value="4-2">4학년 2학기</option>
+              <option value="summer">여름 계절학기</option>
+              <option value="winter">겨울 계절학기</option>
+            </select>
+          </div>
+          <div class="form-group col-half">
+            <label for="editCategory">이수 구분</label>
+            <select id="editCategory" class="custom-select">
+              <option value="major">전공</option>
+              <option value="general">교양</option>
+              <option value="other">일반/기타</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group col-half">
+            <label for="editCredits">학점수</label>
+            <input type="number" id="editCredits" class="custom-input" min="0.5" max="10" step="0.5" required>
+          </div>
+          <div class="form-group col-half">
+            <label for="editGrade">취득 성적</label>
+            <select id="editGrade" class="custom-select">
+              <!-- Dynamically populated based on scale -->
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btnModalCancel" class="btn btn-secondary">취소</button>
+          <button type="submit" class="btn btn-primary">변경사항 저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- App Wrapper -->
+  <div class="app-container">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="header-icon">🎓</div>
+        <div>
+          <div class="header-title-row">
+            <h1 class="header-title">스마트 성적 관리 & 학점 계산기</h1>
+            <span class="version-tag">Pro v2.0</span>
+          </div>
+          <p class="header-desc">전공/교양 분리 집계 | 4.5/4.3 만점 환산 | 학기별 통계 | 목표 평점 시뮬레이터</p>
+        </div>
+      </div>
+
+      <div class="header-tools">
+        <!-- Scale Selector (4.5 vs 4.3) -->
+        <div class="scale-toggle-wrap" title="평점 만점 기준을 선택합니다">
+          <span class="scale-label">만점 기준:</span>
+          <div class="segmented-control">
+            <button type="button" class="seg-btn active" data-scale="4.5">4.5 만점</button>
+            <button type="button" class="seg-btn" data-scale="4.3">4.3 만점</button>
+          </div>
+        </div>
+
+        <!-- Dark / Light Theme Toggle -->
+        <button type="button" id="btnThemeToggle" class="btn-theme" title="다크 모드 / 라이트 모드 전환">
+          <span id="themeIcon">🌙</span>
+        </button>
+
+        <!-- Utility Buttons -->
+        <button type="button" id="btnSampleData" class="btn btn-secondary btn-sm" title="샘플 과목 데이터를 채웁니다">
+          ✨ 예시 데이터
+        </button>
+        <button type="button" id="btnBackup" class="btn btn-secondary btn-sm" title="성적 데이터를 JSON 파일로 백업합니다">
+          💾 백업
+        </button>
+        <button type="button" id="btnRestoreTrigger" class="btn btn-secondary btn-sm" title="백업된 JSON 데이터를 복원합니다">
+          📂 복원
+        </button>
+        <input type="file" id="restoreFileInput" accept=".json" style="display: none;">
+        <button type="button" id="btnClearAll" class="btn btn-outline-danger btn-sm" title="모든 과목 데이터를 삭제합니다">
+          🗑️ 초기화
+        </button>
+      </div>
+    </header>
+
+    <!-- Main 2-Column Responsive Layout -->
+    <main class="ui-layout">
+      
+      <!-- ================= LEFT COLUMN: 입력 인터페이스 & 시뮬레이터 ================= -->
+      <section class="ui-column ui-input-section">
+        
+        <!-- 과목 성적 등록 카드 -->
+        <div class="ui-card">
+          <div class="card-title-bar">
+            <div class="title-with-badge">
+              <span class="section-tag tag-input">과목 등록 폼</span>
+              <h2>과목 성적 추가</h2>
+            </div>
+            <span class="helper-text">C++ 1번 메뉴 확장</span>
+          </div>
+
+          <form id="subjectForm" class="input-form" autocomplete="off">
+            <!-- 과목명 -->
+            <div class="field-block">
+              <label for="subjectName" class="field-label">
+                <span>과목명 <strong class="req">*</strong></span>
+                <span class="field-hint">예: 컴퓨터 알고리즘, 공학수학</span>
+              </label>
+              <div class="input-box-wrapper">
+                <span class="input-prefix-icon">📚</span>
+                <input type="text" id="subjectName" class="custom-input" placeholder="과목명을 입력하세요" required autofocus>
+              </div>
+            </div>
+
+            <!-- 학기 및 이수구분 선택 (전공/교양) -->
+            <div class="form-row">
+              <div class="field-block col-half">
+                <label for="subjectSemester" class="field-label">
+                  <span>이수 학기</span>
+                </label>
+                <select id="subjectSemester" class="custom-select">
+                  <option value="1-1">1학년 1학기</option>
+                  <option value="1-2">1학년 2학기</option>
+                  <option value="2-1" selected>2학년 1학기</option>
+                  <option value="2-2">2학년 2학기</option>
+                  <option value="3-1">3학년 1학기</option>
+                  <option value="3-2">3학년 2학기</option>
+                  <option value="4-1">4학년 1학기</option>
+                  <option value="4-2">4학년 2학기</option>
+                  <option value="summer">여름 계절학기</option>
+                  <option value="winter">겨울 계절학기</option>
+                </select>
+              </div>
+
+              <div class="field-block col-half">
+                <label class="field-label">
+                  <span>이수 구분 <strong class="req">*</strong></span>
+                </label>
+                <div class="category-toggle" id="categoryChips">
+                  <button type="button" class="cat-btn active" data-cat="major">전공</button>
+                  <button type="button" class="cat-btn" data-cat="general">교양</button>
+                  <button type="button" class="cat-btn" data-cat="other">일반</button>
+                </div>
+                <input type="hidden" id="categoryInput" value="major">
+              </div>
+            </div>
+
+            <!-- 이수 학점 선택 칩 -->
+            <div class="field-block">
+              <label class="field-label">
+                <span>학점수 (Credits) <strong class="req">*</strong></span>
+                <span class="field-hint">버튼 클릭 또는 직접 입력</span>
+              </label>
+              <div class="chip-group" id="creditChips">
+                <button type="button" class="chip-btn" data-credit="1">1학점</button>
+                <button type="button" class="chip-btn" data-credit="2">2학점</button>
+                <button type="button" class="chip-btn active" data-credit="3">3학점</button>
+                <button type="button" class="chip-btn" data-credit="4">4학점</button>
+                <button type="button" class="chip-btn" data-credit="0.5">0.5</button>
+              </div>
+              <input type="hidden" id="creditsInput" value="3">
+            </div>
+
+            <!-- 취득 성적 선택 그리드 (동적 렌더링) -->
+            <div class="field-block">
+              <label class="field-label">
+                <span>취득 성적 (Grade) <strong class="req">*</strong></span>
+                <span class="field-hint" id="gradeHint">4.5 만점 등급표</span>
+              </label>
+              <div class="grade-selector-grid" id="gradeChips">
+                <!-- Dynamically populated based on scale (4.5 vs 4.3) -->
+              </div>
+              <input type="hidden" id="gradeInput" value="A+">
+            </div>
+
+            <!-- 제출 버튼 -->
+            <button type="submit" id="btnAddSubject" class="btn btn-primary btn-lg">
+              <span class="btn-icon">➕</span> 과목 성적 등록하기
+            </button>
+          </form>
+        </div>
+
+        <!-- 🎯 목표 학점 시뮬레이터 (Goal GPA Simulator) -->
+        <div class="ui-card simulator-card">
+          <div class="card-title-bar">
+            <div class="title-with-badge">
+              <span class="section-tag tag-sim">시뮬레이션</span>
+              <h3>🎯 목표 졸업 평점 계산기</h3>
+            </div>
+            <button type="button" id="btnToggleSim" class="btn-ghost-sm">접기/펼치기</button>
+          </div>
+          
+          <div id="simBody" class="sim-content">
+            <p class="sim-desc">목표 평점을 달성하기 위해 앞으로 남은 학점 동안 받아야 할 평균 학점을 계산해 드립니다.</p>
+            
+            <div class="sim-inputs">
+              <div class="sim-field">
+                <label for="simTargetGpa">목표 평점 (GPA)</label>
+                <input type="number" id="simTargetGpa" class="custom-input input-sm" min="1.0" max="4.5" step="0.05" value="4.00">
+              </div>
+              <div class="sim-field">
+                <label for="simRemainCredits">앞으로 남은 이수 학점</label>
+                <input type="number" id="simRemainCredits" class="custom-input input-sm" min="1" max="150" step="1" value="30">
+              </div>
+            </div>
+
+            <div class="sim-result-box" id="simResultBox">
+              <span class="sim-res-title">앞으로 필요한 평균 학점:</span>
+              <div class="sim-res-val">
+                <strong id="simRequiredGpa">-</strong>
+                <span id="simRequiredText" class="sim-res-note">현재 성적을 등록하면 자동 계산됩니다.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 기준표 카드 -->
+        <div class="ui-card info-card">
+          <div class="card-title-bar">
+            <h3>📖 학점 변환 기준표</h3>
+            <span class="badge badge-info" id="scaleIndicator">4.5 만점 기준</span>
+          </div>
+          <div class="criteria-table-wrap" id="criteriaTableContainer">
+            <!-- Dynamic Criteria Table -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ================= RIGHT COLUMN: 결과 대시보드 & 과목 목록 ================= -->
+      <section class="ui-column ui-result-section">
+        
+        <!-- 대형 GPA 결과 보드 (전체 GPA & 전공 GPA 듀얼 카드) -->
+        <div class="ui-card gpa-hero-card">
+          <div class="card-title-bar">
+            <span class="section-tag tag-result">실시간 성적 요약</span>
+            <span class="helper-text-white" id="heroScaleText">4.50 만점 체계 기준 산출</span>
+          </div>
+
+          <!-- Dual GPA Highlight -->
+          <div class="dual-gpa-container">
+            <!-- 전체 평점 -->
+            <div class="gpa-pod main-pod">
+              <span class="pod-label">전체 평점 평균 (Total GPA)</span>
+              <div class="pod-number-row">
+                <span id="gpaScore" class="pod-number">0.00</span>
+                <span class="pod-scale" id="gpaMaxScale">/ 4.50</span>
+              </div>
+              <div id="gpaGradeTag" class="status-pill">과목을 등록해주세요</div>
+            </div>
+
+            <!-- 전공 평점 -->
+            <div class="gpa-pod sub-pod">
+              <span class="pod-label">전공 평점 평균 (Major GPA)</span>
+              <div class="pod-number-row">
+                <span id="majorGpaScore" class="pod-number major-color">0.00</span>
+                <span class="pod-scale" id="majorMaxScale">/ 4.50</span>
+              </div>
+              <div class="sub-pod-detail">
+                <span>전공 이수: <strong id="majorCreditsCount">0</strong> 학점</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 프로그레스 게이지 바 -->
+          <div class="gpa-meter">
+            <div class="meter-track">
+              <div id="gpaBarFill" class="meter-bar" style="width: 0%;"></div>
+            </div>
+            <div class="meter-labels" id="meterLabels">
+              <span>0.0</span>
+              <span>2.0 (학사경고선)</span>
+              <span>3.0</span>
+              <span>4.0</span>
+              <span id="meterMaxLabel">4.5</span>
+            </div>
+          </div>
+
+          <!-- 4대 핵심 결과 지표 그리드 -->
+          <div class="result-stats-row">
+            <div class="result-stat-box">
+              <span class="r-label">총 취득 과목수</span>
+              <span id="totalSubjects" class="r-value">0 <small>과목</small></span>
+            </div>
+            <div class="result-stat-box">
+              <span class="r-label">총 이수 학점</span>
+              <span id="totalCredits" class="r-value">0 <small>학점</small></span>
+            </div>
+            <div class="result-stat-box">
+              <span class="r-label">평점 반영 학점</span>
+              <span id="gpaCredits" class="r-value">0 <small>학점</small></span>
+            </div>
+            <div class="result-stat-box">
+              <span class="r-label">100점 환산 점수</span>
+              <span id="convertedPercent" class="r-value">0.0 <small>점</small></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 학기별 필터 탭 네비게이션 -->
+        <div class="semester-filter-bar">
+          <div class="sem-tabs-scroll" id="semesterTabs">
+            <button type="button" class="sem-tab active" data-sem="all">전체 학기</button>
+            <button type="button" class="sem-tab" data-sem="1-1">1-1</button>
+            <button type="button" class="sem-tab" data-sem="1-2">1-2</button>
+            <button type="button" class="sem-tab" data-sem="2-1">2-1</button>
+            <button type="button" class="sem-tab" data-sem="2-2">2-2</button>
+            <button type="button" class="sem-tab" data-sem="3-1">3-1</button>
+            <button type="button" class="sem-tab" data-sem="3-2">3-2</button>
+            <button type="button" class="sem-tab" data-sem="4-1">4-1</button>
+            <button type="button" class="sem-tab" data-sem="4-2">4-2</button>
+            <button type="button" class="sem-tab" data-sem="summer">여름</button>
+            <button type="button" class="sem-tab" data-sem="winter">겨울</button>
+          </div>
+        </div>
+
+        <!-- 등록 과목 목록 및 결과 테이블 -->
+        <div class="ui-card table-card">
+          <div class="card-title-bar flex-between">
+            <div>
+              <div class="flex-align-gap">
+                <h2>📋 성적 상세 내역표</h2>
+                <span id="currentFilterBadge" class="filter-badge">전체 학기 보기</span>
+              </div>
+              <p class="sub-caption">과목을 클릭하거나 수정(✏️) 버튼을 눌러 바로 수정할 수 있습니다.</p>
+            </div>
+            <div class="table-tool-buttons">
+              <button type="button" id="btnExportCsv" class="btn btn-sm btn-secondary">
+                <span>📥</span> CSV 내보내기
+              </button>
+              <button type="button" id="btnPrint" class="btn btn-sm btn-secondary">
+                <span>🖨️</span> 인쇄/PDF
+              </button>
+            </div>
+          </div>
+
+          <!-- 테이블 컨테이너 -->
+          <div class="table-container">
+            <table class="result-table" id="subjectTable">
+              <thead>
+                <tr>
+                  <th style="width: 45px;">#</th>
+                  <th style="width: 75px;">학기</th>
+                  <th style="width: 65px;">구분</th>
+                  <th>과목명</th>
+                  <th style="width: 70px; text-align: center;">학점</th>
+                  <th style="width: 85px; text-align: center;">취득성적</th>
+                  <th style="width: 85px; text-align: center;">환산평점</th>
+                  <th style="width: 80px; text-align: center;">관리</th>
+                </tr>
+              </thead>
+              <tbody id="subjectListBody">
+                <!-- Javascript 주입 -->
+              </tbody>
+            </table>
+
+            <!-- 빈 화면 안내 -->
+            <div id="emptyState" class="empty-display">
+              <div class="empty-graphic">📝</div>
+              <h3>등록된 과목이 없습니다</h3>
+              <p>좌측 입력창에서 과목명, 학점, 성적을 등록해보세요.<br>상단의 <strong>'✨ 예시 데이터'</strong>를 누르면 실제 대학교 수강 예시를 즉시 불러옵니다.</p>
+              <button type="button" id="btnEmptySample" class="btn btn-primary mt-3">
+                ✨ 예시 과목 데이터 불러오기
+              </button>
+            </div>
+          </div>
+
+          <!-- 테이블 하단 합계 요약 바 -->
+          <div id="tableFooterSummary" class="table-summary-bar hidden">
+            <div class="sum-item">조회 과목수: <strong id="footerCount">0</strong>개</div>
+            <div class="sum-item">조회 이수학점: <strong id="footerTotalCredits">0</strong>학점</div>
+            <div class="sum-item final-gpa">조회 범위 평점: <strong id="footerGpa">0.00</strong></div>
+          </div>
+        </div>
+
+        <!-- 등급별 분포 비율 바 차트 -->
+        <div class="ui-card chart-card">
+          <div class="card-title-bar">
+            <h3>📊 성적 등급별 분포 비율</h3>
+            <span class="helper-text">이수한 과목들의 등급 비율</span>
+          </div>
+          <div id="gradeDistribution" class="distribution-bars">
+            <!-- Dynamic distribution bars -->
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>© C++ 성적 관리 및 학점 계산 프로그램 Pro Web Version | 4.5/4.3 만점 지원 | 전공/교양 분석 | 반응형 웹 UI</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
